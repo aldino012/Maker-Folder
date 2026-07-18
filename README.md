@@ -18,10 +18,6 @@ Aplikasi web sederhana berbasis **Node.js + Express** untuk membuat banyak folde
 - 🔒 **Path Safety** – Otomatis memblokir akses ke folder sistem Windows (`Windows`, `Program Files`, dll).
 - 👁️ **Live Preview** – Lihat daftar folder yang akan dibuat sebelum submit.
 
-## 📸 Screenshot
-
-*(Tambahkan screenshot aplikasi Anda di sini nanti)*
-
 ## 🛠️ Teknologi
 
 - [Node.js](https://nodejs.org/)
