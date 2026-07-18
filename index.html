@@ -3,10 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Buat Folder Dinamis Multi-Level</title>
+    <title>Maker-Folder Pro</title>
     <style>
         body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f0f2f5; color: #333; }
         .container { max-width: 850px; margin: 40px auto; padding: 30px; background: white; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
+        
+        /* Tab Navigation */
+        .tab-nav { display: flex; gap: 10px; margin-bottom: 25px; border-bottom: 2px solid #e9ecef; }
+        .tab-btn { flex: 1; padding: 12px; background: none; border: none; cursor: pointer; font-size: 15px; font-weight: bold; color: #6c757d; transition: all 0.3s; border-bottom: 3px solid transparent; }
+        .tab-btn.active { color: #007bff; border-bottom-color: #007bff; }
+        .tab-btn:hover { background: #f8f9fa; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
         select, input, textarea, button { width: 100%; padding: 12px; margin-top: 6px; box-sizing: border-box; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; }
         select { margin-bottom: 10px; background-color: #fdfdfd; cursor: pointer; }
         .editable-input { background-color: #fff; border: 2px solid #007bff; font-weight: bold; color: #333; }
@@ -54,70 +63,135 @@
         .suggestion-btn:hover { background: #e0a800; }
         
         /* Summary */
-        .summary {
-            display: flex; gap: 10px; margin-top: 10px; font-size: 13px;
-        }
-        .summary-item {
-            flex: 1; padding: 8px; border-radius: 4px; text-align: center; font-weight: bold;
-        }
+        .summary { display: flex; gap: 10px; margin-top: 10px; font-size: 13px; }
+        .summary-item { flex: 1; padding: 8px; border-radius: 4px; text-align: center; font-weight: bold; }
         .summary-new { background: #d4edda; color: #155724; }
         .summary-exists { background: #fff3cd; color: #856404; }
         .summary-unsafe { background: #f8d7da; color: #721c24; }
         
         .loading { color: #6c757d; font-style: italic; }
+        
+        /* Organize Tab Styles */
+        .organize-info {
+            background: #e7f3ff; border-left: 4px solid #2196F3;
+            padding: 15px; margin: 15px 0; border-radius: 6px;
+        }
+        .organize-info h4 { margin: 0 0 10px 0; color: #1976D2; }
+        .category-preview {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px; margin-top: 15px;
+        }
+        .category-card {
+            background: #f8f9fa; padding: 12px; border-radius: 6px;
+            border: 2px solid #dee2e6; text-align: center;
+        }
+        .category-card h5 { margin: 0 0 8px 0; font-size: 14px; }
+        .category-card .icon { font-size: 32px; margin-bottom: 5px; }
+        .category-card .ext { font-size: 11px; color: #6c757d; margin-top: 5px; }
+        
+        .organize-btn { background: #28a745; }
+        .organize-btn:hover { background: #218838; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2 style="text-align: center; color: #333; margin-bottom: 25px;">📁 Pembuat Folder Multi-Level + Smart Suggestion</h2>
-        <form action="/create-folder" method="POST">
-            
-            <div style="margin-bottom: 20px;">
-                <label><strong>1. Lokasi Tujuan (Sudah Ada):</strong></label>
-                <div id="select-container" style="margin-top: 10px;"></div>
-                
-                <input type="text" name="basePath" id="basePath" class="editable-input" required placeholder="Contoh: E:\Kuliah\Semester-4\Internet Marketing">
-                <span class="hint">💡 Pilih dari dropdown, atau <strong>ketik manual</strong> path folder yang sudah ada.</span>
-            </div>
+        <h2 style="text-align: center; color: #333; margin-bottom: 25px;">🚀 Maker-Folder Pro</h2>
+        
+        <!-- Tab Navigation -->
+        <div class="tab-nav">
+            <button type="button" class="tab-btn active" onclick="switchTab('create')">📁 Buat Folder</button>
+            <button type="button" class="tab-btn" onclick="switchTab('organize')">🗂️ Rapikan Folder</button>
+        </div>
 
-            <div style="margin-bottom: 15px;">
-                <label><strong>2. Daftar Folder Baru (Support Range & Suggestion):</strong></label>
-                <textarea name="folderList" id="folderList" rows="8" required placeholder="Pertemuan-{1:16}&#10;Tugas&#10;Ujian\Soal&#10;Minggu-{01:12}\Materi"></textarea>
-                
-                <div class="hint">
-                    <strong>🎯 Fitur Range Generator:</strong> Gunakan format <code>Nama{start:end}</code> untuk membuat banyak folder otomatis.
-                    <ul>
-                        <li><code>Pertemuan-{1:16}</code> → Pertemuan-1, Pertemuan-2, ..., Pertemuan-16</li>
-                        <li><code>Minggu-{01:12}</code> → Minggu-01, Minggu-02, ..., Minggu-12 (dengan nol depan)</li>
-                        <li><code>Pertemuan-{1:16}\Materi</code> → Pertemuan-1\Materi, Pertemuan-2\Materi, ...</li>
-                    </ul>
-                    <strong>💡 Smart Suggestion:</strong> Jika folder sudah ada, sistem akan otomatis memberi saran range baru.
+        <!-- TAB 1: CREATE FOLDER -->
+        <div id="createTab" class="tab-content active">
+            <form action="/create-folder" method="POST">
+                <div style="margin-bottom: 20px;">
+                    <label><strong>1. Lokasi Tujuan (Sudah Ada):</strong></label>
+                    <div id="select-container" style="margin-top: 10px;"></div>
+                    <input type="text" name="basePath" id="basePath" class="editable-input" required placeholder="Contoh: E:\Kuliah\Semester-4\Internet Marketing">
+                    <span class="hint">💡 Pilih dari dropdown, atau <strong>ketik manual</strong> path folder yang sudah ada.</span>
                 </div>
 
-                <!-- Summary Counter -->
-                <div class="summary" id="summary" style="display: none;">
-                    <div class="summary-item summary-new" id="summaryNew">🟢 0 Baru</div>
-                    <div class="summary-item summary-exists" id="summaryExists">🟡 0 Sudah Ada</div>
-                    <div class="summary-item summary-unsafe" id="summaryUnsafe">🔴 0 Tidak Aman</div>
+                <div style="margin-bottom: 15px;">
+                    <label><strong>2. Daftar Folder Baru (Support Range & Suggestion):</strong></label>
+                    <textarea name="folderList" id="folderList" rows="8" required placeholder="Pertemuan-{1:16}&#10;Tugas&#10;Ujian\Soal&#10;Minggu-{01:12}\Materi"></textarea>
+                    
+                    <div class="hint">
+                        <strong>🎯 Fitur Range Generator:</strong> Gunakan format <code>Nama{start:end}</code>
+                        <ul>
+                            <li><code>Pertemuan-{1:16}</code> → Pertemuan-1, Pertemuan-2, ..., Pertemuan-16</li>
+                            <li><code>Minggu-{01:12}</code> → Minggu-01, Minggu-02, ..., Minggu-12 (dengan nol depan)</li>
+                            <li><code>Pertemuan-{1:16}\Materi</code> → Pertemuan-1\Materi, Pertemuan-2\Materi, ...</li>
+                        </ul>
+                        <strong>💡 Smart Suggestion:</strong> Jika folder sudah ada, sistem akan otomatis memberi saran range baru.
+                    </div>
+
+                    <div class="summary" id="summary" style="display: none;">
+                        <div class="summary-item summary-new" id="summaryNew">🟢 0 Baru</div>
+                        <div class="summary-item summary-exists" id="summaryExists">🟡 0 Sudah Ada</div>
+                        <div class="summary-item summary-unsafe" id="summaryUnsafe">🔴 0 Tidak Aman</div>
+                    </div>
+
+                    <div class="preview-box" id="preview">
+                        <em>Preview hasil folder akan muncul di sini saat Anda mengetik...</em>
+                    </div>
+
+                    <div class="suggestion-box" id="suggestionBox">
+                        <h4>💡 Saran: Ada folder yang sudah ada di lokasi tujuan</h4>
+                        <div id="suggestionContent"></div>
+                    </div>
                 </div>
 
-                <!-- Preview Box -->
-                <div class="preview-box" id="preview">
-                    <em>Preview hasil folder akan muncul di sini saat Anda mengetik...</em>
+                <button type="submit">🚀 Buat Semua Folder Sekarang</button>
+            </form>
+        </div>
+
+        
+        <!-- TAB 2: ORGANIZE FOLDER -->
+        <div id="organizeTab" class="tab-content">
+            <form action="/organize-folder" method="POST">
+                <div class="organize-info">
+                    <h4>🗂️ Fitur Auto-Organize (Per-Folder)</h4>
+                    <p style="margin: 0; line-height: 1.6;">
+                        Sistem akan memindai folder yang dipilih. <strong>Setiap folder (termasuk subfolder)</strong> akan dibuatkan kategori (<code>Images</code>, <code>Audio</code>, <code>Documents</code>, <code>Archives</code>) di dalamnya sendiri.
+                    </p>
+                    <p style="margin: 15px 0 0 0; font-size: 13px; color: #555; background: #fff3cd; padding: 10px; border-radius: 4px;">
+                        <strong>⚠️ Aturan Duplikasi:</strong> Jika ada file dengan nama yang sama di folder yang sama, file tersebut akan di-<strong>SKIP</strong> (dilewati) agar data Anda aman. Namun, file dengan nama sama di <strong>subfolder yang berbeda</strong> diizinkan.
+                    </p>
                 </div>
 
-                <!-- Suggestion Box -->
-                <div class="suggestion-box" id="suggestionBox">
-                    <h4>💡 Saran: Ada folder yang sudah ada di lokasi tujuan</h4>
-                    <div id="suggestionContent"></div>
+                <div style="margin-bottom: 20px;">
+                    <label><strong>Pilih Folder yang Akan Dirapikan:</strong></label>
+                    <div id="organize-select-container" style="margin-top: 10px;"></div>
+                    <input type="text" name="organizePath" id="organizePath" class="editable-input" required placeholder="Contoh: E:\Tes">
                 </div>
-            </div>
 
-            <button type="submit">🚀 Buat Semua Folder Sekarang</button>
-        </form>
-    </div>
+                <div style="margin-bottom: 15px;">
+                    <label><strong>Opsi Tambahan:</strong></label>
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-top: 6px;">
+                        <label style="display: block; cursor: pointer;">
+                            <input type="checkbox" name="recursive" value="true" checked style="width: auto; margin-right: 8px;">
+                            <strong>Termasuk Subfolder</strong> <small>(Sangat disarankan: agar subfolder seperti <code>SubTes</code> juga dibuatkan folder kategori masing-masing)</small>
+                        </label>
+                    </div>
+                </div>
+
+                <button type="submit" class="organize-btn">🗂️ Rapikan Folder Sekarang</button>
+            </form>
+        </div>
 
     <script>
+        // ===== TAB SWITCHING =====
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName + 'Tab').classList.add('active');
+        }
+
+        // ===== CREATE TAB LOGIC =====
         const container = document.getElementById('select-container');
         const basePathInput = document.getElementById('basePath');
         const folderListInput = document.getElementById('folderList');
@@ -143,7 +217,6 @@
             return pathStr;
         }
 
-        // ===== RANGE EXPANDER =====
         function expandPatterns(entries) {
             const result = [];
             const patternRegex = /^(.*)[\{\[](-?\d+):(-?\d+)[\}\}](.*)$/;
@@ -175,11 +248,9 @@
             return result;
         }
 
-        // ===== SMART SUGGESTION ENGINE =====
         function generateSuggestion(rawInput, existingFolders) {
             const patternRegex = /^(.*)[\{\[](-?\d+):(-?\d+)[\}\}](.*)$/;
             const suggestions = [];
-            
             const lines = rawInput.split(/[,\n\r]+/).map(l => l.trim()).filter(l => l);
             
             for (const line of lines) {
@@ -192,7 +263,6 @@
                 const end = parseInt(match[3]);
                 const padLength = Math.max(match[2].length, match[3].length);
                 
-                // Cari angka tertinggi yang sudah ada di pattern ini
                 let maxExisting = start - 1;
                 let existingCount = 0;
                 
@@ -205,7 +275,6 @@
                     }
                 }
                 
-                // Jika ada yang sudah ada, buat saran
                 if (existingCount > 0) {
                     const newStart = maxExisting + 1;
                     if (newStart <= end) {
@@ -228,11 +297,9 @@
                     }
                 }
             }
-            
             return suggestions;
         }
 
-        // ===== CHECK EXISTING FOLDERS VIA API =====
         async function checkExistingFolders(basePath, folders) {
             if (abortController) abortController.abort();
             abortController = new AbortController();
@@ -252,7 +319,6 @@
             }
         }
 
-        // ===== UPDATE PREVIEW =====
         async function updatePreview() {
             const raw = folderListInput.value;
             if (!raw.trim()) {
@@ -274,7 +340,6 @@
             const expanded = expandPatterns(entries);
             const folderNames = expanded.map(e => e.name);
             
-            // Cek folder yang sudah ada
             const checkResult = await checkExistingFolders(basePath, folderNames);
             
             if (!checkResult) {
@@ -285,7 +350,6 @@
             const { existing, unsafe } = checkResult;
             const existingSet = new Set(existing);
             
-            // Update tipe setiap entry
             expanded.forEach(e => {
                 if (unsafe && unsafe.includes(e.name)) {
                     e.type = 'unsafe';
@@ -296,7 +360,6 @@
                 }
             });
             
-            // Render preview
             const previewHtml = expanded.slice(0, 50).map(e => {
                 const cls = e.type === 'new' ? 'preview-new' : e.type === 'exists' ? 'preview-exists' : 'preview-unsafe';
                 const icon = e.type === 'new' ? '🟢' : e.type === 'exists' ? '🟡' : '🔴';
@@ -307,7 +370,6 @@
             const moreCount = expanded.length - 50;
             previewBox.innerHTML = previewHtml + (moreCount > 0 ? `<div class="loading">... dan ${moreCount} folder lainnya</div>` : '');
             
-            // Update summary
             const newCount = expanded.filter(e => e.type === 'new').length;
             const existsCount = expanded.filter(e => e.type === 'exists').length;
             const unsafeCount = expanded.filter(e => e.type === 'unsafe').length;
@@ -317,7 +379,6 @@
             summaryExists.textContent = `🟡 ${existsCount} Sudah Ada`;
             summaryUnsafe.textContent = `🔴 ${unsafeCount} Tidak Aman`;
             
-            // Generate suggestion
             const suggestions = generateSuggestion(raw, existing);
             if (suggestions.length > 0) {
                 let html = '';
@@ -343,7 +404,6 @@
             }
         }
 
-        // Apply suggestion to textarea
         window.applySuggestion = function(original, suggestion) {
             const raw = folderListInput.value;
             const newRaw = raw.replace(original, suggestion);
@@ -351,7 +411,6 @@
             updatePreview();
         };
 
-        // Debounced update
         function debouncedUpdate() {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(updatePreview, 500);
@@ -360,7 +419,84 @@
         folderListInput.addEventListener('input', debouncedUpdate);
         basePathInput.addEventListener('input', debouncedUpdate);
 
-        // ===== DRIVE & FOLDER SELECT =====
+        // ===== ORGANIZE TAB LOGIC =====
+        const organizeContainer = document.getElementById('organize-select-container');
+        const organizePathInput = document.getElementById('organizePath');
+        let organizePathArray = [];
+
+        function getOrganizeFullPath() {
+            if (organizePathArray.length === 0) return "";
+            let pathStr = organizePathArray[0];
+            for (let i = 1; i < organizePathArray.length; i++) {
+                if (!pathStr.endsWith('\\')) pathStr += '\\';
+                pathStr += organizePathArray[i];
+            }
+            return pathStr;
+        }
+
+        async function initOrganizeDrives() {
+            try {
+                const res = await fetch('/api/drives');
+                const drives = await res.json();
+                createOrganizeSelect(drives, 0, "Pilih Drive");
+            } catch (error) {
+                console.error("Gagal memuat drive:", error);
+            }
+        }
+
+        function createOrganizeSelect(options, level, placeholderText) {
+            const existingSelects = organizeContainer.querySelectorAll('select');
+            existingSelects.forEach(sel => {
+                if (parseInt(sel.dataset.level) >= level) sel.remove();
+            });
+
+            organizePathArray = organizePathArray.slice(0, level);
+            if (organizePathInput.value === "" || organizePathArray.length > 0) {
+                organizePathInput.value = getOrganizeFullPath();
+            }
+
+            if (options.length === 0) return;
+
+            const select = document.createElement('select');
+            select.dataset.level = level;
+
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = "";
+            defaultOpt.textContent = '-- ' + (placeholderText || 'Pilih Sub-Folder') + ' --';
+            select.appendChild(defaultOpt);
+
+            options.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt;
+                option.textContent = opt;
+                select.appendChild(option);
+            });
+
+            select.addEventListener('change', async (e) => {
+                const val = e.target.value;
+                if (!val) {
+                    organizePathArray = organizePathArray.slice(0, level);
+                    createOrganizeSelect([], level + 1);
+                    organizePathInput.value = getOrganizeFullPath();
+                    return;
+                }
+
+                organizePathArray[level] = val;
+                organizePathInput.value = getOrganizeFullPath();
+
+                try {
+                    const res = await fetch('/api/folders?path=' + encodeURIComponent(getOrganizeFullPath()));
+                    const subfolders = await res.json();
+                    createOrganizeSelect(subfolders, level + 1);
+                } catch (error) {
+                    createOrganizeSelect([], level + 1);
+                }
+            });
+
+            organizeContainer.appendChild(select);
+        }
+
+        // ===== CREATE TAB DRIVE SELECT =====
         async function initDrives() {
             try {
                 const res = await fetch('/api/drives');
@@ -427,6 +563,7 @@
         }
 
         initDrives();
+        initOrganizeDrives();
     </script>
 </body>
 </html>
