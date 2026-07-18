@@ -40,11 +40,9 @@ function isPathSafe(targetPath) {
     }
 }
 
-// ===== RANGE EXPANDER (Server-side) =====
-// Mengubah "Pertemuan-{1:16}" menjadi array ["Pertemuan-1", "Pertemuan-2", ..., "Pertemuan-16"]
+// ===== RANGE EXPANDER =====
 function expandPatterns(entries) {
     const result = [];
-    // Regex: prefix{start:end}suffix  atau  prefix[start:end]suffix
     const patternRegex = /^(.*)[\{\[](-?\d+):(-?\d+)[\}\}](.*)$/;
     
     for (const entry of entries) {
@@ -54,7 +52,6 @@ function expandPatterns(entries) {
             const suffix = match[4];
             const start = parseInt(match[2]);
             const end = parseInt(match[3]);
-            // Auto padding: jika user tulis "01", maka hasil akan "01", "02", dst
             const padLength = Math.max(match[2].length, match[3].length);
             
             if (start > end) {
@@ -62,7 +59,6 @@ function expandPatterns(entries) {
                 continue;
             }
             
-            // Batasi maksimal 200 item per range untuk keamanan
             const total = end - start + 1;
             const limit = Math.min(total, 200);
             
@@ -82,8 +78,7 @@ function expandPatterns(entries) {
     return result;
 }
 
-// --- API ---
-
+// --- API: GET DRIVES ---
 app.get('/api/drives', (req, res) => {
     const drives = [];
     const letters = 'CDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -101,6 +96,7 @@ app.get('/api/drives', (req, res) => {
     res.json(drives);
 });
 
+// --- API: GET FOLDERS ---
 app.get('/api/folders', (req, res) => {
     const targetPath = req.query.path;
     if (!targetPath) return res.json([]);
@@ -120,6 +116,58 @@ app.get('/api/folders', (req, res) => {
     } catch (err) {
         res.json([]); 
     }
+});
+
+// --- API: CHECK EXISTING FOLDERS (NEW!) ---
+app.post('/api/check-existing', (req, res) => {
+    const { basePath, folders } = req.body;
+    
+    if (!basePath || !Array.isArray(folders)) {
+        return res.status(400).json({ error: 'Invalid request' });
+    }
+    
+    // Batasi jumlah folder yang bisa dicek
+    const limitedFolders = folders.slice(0, 500);
+    const resolvedBasePath = path.resolve(basePath);
+    
+    const existing = [];
+    const unsafe = [];
+    
+    // Cek apakah basePath aman
+    if (!isPathSafe(resolvedBasePath)) {
+        return res.json({ existing: [], unsafe: limitedFolders, error: 'Base path tidak aman' });
+    }
+    
+    // Cek apakah basePath ada
+    if (!fs.existsSync(resolvedBasePath)) {
+        return res.json({ existing: [], unsafe: [], basePathExists: false });
+    }
+    
+    for (const folder of limitedFolders) {
+        const fullPath = path.resolve(resolvedBasePath, folder);
+        
+        // Cek keamanan
+        if (!isPathSafe(fullPath)) {
+            unsafe.push(folder);
+            continue;
+        }
+        
+        // Cek apakah sudah ada
+        try {
+            if (fs.existsSync(fullPath)) {
+                existing.push(folder);
+            }
+        } catch (err) {
+            // Abaikan error
+        }
+    }
+    
+    res.json({ 
+        existing, 
+        unsafe, 
+        basePathExists: true,
+        totalChecked: limitedFolders.length
+    });
 });
 
 // --- HALAMAN UTAMA ---
@@ -155,9 +203,15 @@ app.post('/create-folder', (req, res) => {
     }
 
     try {
-        let createdLog = [];
+        // Tracking stats
+        let stats = {
+            created: [],
+            skipped: [],    // Sudah ada (skip)
+            rejected: [],   // Tidak aman
+            failed: []      // Error saat membuat
+        };
         
-        // 1. Split input berdasarkan koma atau baris baru
+        // 1. Split input
         const rawEntries = folderListRaw.split(/[,\n\r]+/)
             .map(entry => entry.trim())
             .filter(entry => entry !== '');
@@ -166,48 +220,102 @@ app.post('/create-folder', (req, res) => {
             throw new Error("Tidak ada nama folder yang valid ditemukan.");
         }
 
-        // 2. EXPAND semua pattern range (misal: Pertemuan-{1:16} → 16 folder)
+        // 2. EXPAND pattern range
         const expandedEntries = expandPatterns(rawEntries);
 
-        // 3. Batasi total folder yang bisa dibuat sekaligus (maks 500)
+        // 3. Batasi total
         const limitedEntries = expandedEntries.slice(0, 500);
 
         for (const entry of limitedEntries) {
             if (entry.error === 'limit') {
-                createdLog.push(`⚠️ ${entry.name}`);
+                stats.rejected.push({ name: entry.name, reason: 'Melebihi batas 200 item per range' });
                 continue;
             }
             if (entry.error) {
-                createdLog.push(`❌ ${entry.name} (${entry.error})`);
+                stats.rejected.push({ name: entry.name, reason: entry.error });
                 continue;
             }
 
             const targetDir = path.resolve(resolvedBasePath, entry.name);
 
+            // Cek keamanan
             if (!isPathSafe(targetDir)) {
-                createdLog.push(`❌ Ditolak (tidak aman): <strong>${entry.name}</strong>`);
+                stats.rejected.push({ name: entry.name, reason: 'Path tidak aman (area sistem)' });
                 continue;
             }
 
             try {
-                if (!fs.existsSync(targetDir)) {
-                    fs.mkdirSync(targetDir, { recursive: true });
-                    createdLog.push(`✅ Berhasil: <strong>${targetDir}</strong>`);
-                } else {
-                    createdLog.push(`ℹ️ Sudah ada: <strong>${targetDir}</strong>`);
+                // CEK DUPLIKASI: jika sudah ada, SKIP (bukan error)
+                if (fs.existsSync(targetDir)) {
+                    stats.skipped.push({ name: entry.name, path: targetDir });
+                    continue;
                 }
+                
+                // Buat folder baru
+                fs.mkdirSync(targetDir, { recursive: true });
+                stats.created.push({ name: entry.name, path: targetDir });
             } catch (err) {
-                createdLog.push(`❌ Gagal <strong>${entry.name}</strong>: ${err.message}`);
+                stats.failed.push({ name: entry.name, reason: err.message });
             }
         }
 
+        // Render hasil dengan detail
+        const totalProcessed = stats.created.length + stats.skipped.length + stats.rejected.length + stats.failed.length;
+        
+        let logHtml = '';
+        
+        if (stats.created.length > 0) {
+            logHtml += `<li style="margin-bottom: 10px;"><strong style="color: #155724;">✅ Berhasil Dibuat (${stats.created.length}):</strong>
+                <ul style="margin-top: 5px;">${stats.created.map(f => `<li>${f.path}</li>`).join('')}</ul></li>`;
+        }
+        
+        if (stats.skipped.length > 0) {
+            logHtml += `<li style="margin-bottom: 10px;"><strong style="color: #856404;">⏭️ Dilewati - Sudah Ada (${stats.skipped.length}):</strong>
+                <ul style="margin-top: 5px;">${stats.skipped.map(f => `<li>${f.path}</li>`).join('')}</ul></li>`;
+        }
+        
+        if (stats.rejected.length > 0) {
+            logHtml += `<li style="margin-bottom: 10px;"><strong style="color: #721c24;">❌ Ditolak (${stats.rejected.length}):</strong>
+                <ul style="margin-top: 5px;">${stats.rejected.map(f => `<li>${f.name} <em>(${f.reason})</em></li>`).join('')}</ul></li>`;
+        }
+        
+        if (stats.failed.length > 0) {
+            logHtml += `<li style="margin-bottom: 10px;"><strong style="color: #721c24;">⚠️ Gagal (${stats.failed.length}):</strong>
+                <ul style="margin-top: 5px;">${stats.failed.map(f => `<li>${f.name}: ${f.reason}</li>`).join('')}</ul></li>`;
+        }
+
+        // Pesan status
+        let statusMsg = '';
+        if (stats.created.length === 0 && stats.skipped.length > 0) {
+            statusMsg = `<p style="color: #856404; font-weight: bold;">⚠️ Semua folder sudah ada di lokasi tujuan. Tidak ada folder baru yang dibuat.</p>`;
+        } else if (stats.created.length > 0 && stats.skipped.length > 0) {
+            statusMsg = `<p style="color: #0c5460;">ℹ️ Sebagian folder sudah ada dan dilewati. Folder baru tetap dibuat.</p>`;
+        }
+
         res.send(`
-            <div style="font-family: Arial; max-width: 850px; margin: 40px auto; background: #e6f6ea; padding: 25px; border-radius: 10px; border: 1px solid #28a745;">
+            <div style="font-family: Arial; max-width: 900px; margin: 40px auto; background: #e6f6ea; padding: 25px; border-radius: 10px; border: 1px solid #28a745;">
                 <h3 style="color: #155724; margin-top: 0;">✅ Proses Selesai!</h3>
-                <p>Total <strong>${limitedEntries.length}</strong> folder diproses di dalam:<br>
-                <code style="background:#d4edda; padding:6px 10px; display:inline-block; margin-top:5px;">${resolvedBasePath}</code></p>
-                <ul style="line-height: 1.6; max-height: 450px; overflow-y: auto; background: white; padding: 15px; border-radius: 6px; border: 1px solid #c3e6cb;">
-                    ${createdLog.map(log => `<li style="margin-bottom: 6px;">${log}</li>`).join('')}
+                <p><strong>Lokasi:</strong> <code style="background:#d4edda; padding:6px 10px;">${resolvedBasePath}</code></p>
+                
+                <div style="display: flex; gap: 10px; margin: 15px 0; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 120px; background: #d4edda; padding: 10px; border-radius: 6px; text-align: center;">
+                        <div style="font-size: 24px; font-weight: bold; color: #155724;">${stats.created.length}</div>
+                        <div style="font-size: 12px; color: #155724;">✅ Dibuat</div>
+                    </div>
+                    <div style="flex: 1; min-width: 120px; background: #fff3cd; padding: 10px; border-radius: 6px; text-align: center;">
+                        <div style="font-size: 24px; font-weight: bold; color: #856404;">${stats.skipped.length}</div>
+                        <div style="font-size: 12px; color: #856404;">⏭️ Dilewati</div>
+                    </div>
+                    <div style="flex: 1; min-width: 120px; background: #f8d7da; padding: 10px; border-radius: 6px; text-align: center;">
+                        <div style="font-size: 24px; font-weight: bold; color: #721c24;">${stats.rejected.length + stats.failed.length}</div>
+                        <div style="font-size: 12px; color: #721c24;">❌ Ditolak/Gagal</div>
+                    </div>
+                </div>
+                
+                ${statusMsg}
+                
+                <ul style="line-height: 1.5; max-height: 400px; overflow-y: auto; background: white; padding: 15px; border-radius: 6px; border: 1px solid #c3e6cb; list-style: none;">
+                    ${logHtml}
                 </ul>
                 <br>
                 <a href="/" style="display: inline-block; padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">Buat Folder Lainnya</a>

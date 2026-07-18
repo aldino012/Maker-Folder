@@ -6,7 +6,7 @@
     <title>Buat Folder Dinamis Multi-Level</title>
     <style>
         body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f0f2f5; color: #333; }
-        .container { max-width: 800px; margin: 40px auto; padding: 30px; background: white; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
+        .container { max-width: 850px; margin: 40px auto; padding: 30px; background: white; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
         select, input, textarea, button { width: 100%; padding: 12px; margin-top: 6px; box-sizing: border-box; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; }
         select { margin-bottom: 10px; background-color: #fdfdfd; cursor: pointer; }
         .editable-input { background-color: #fff; border: 2px solid #007bff; font-weight: bold; color: #333; }
@@ -19,12 +19,57 @@
         button { background-color: #007bff; color: white; font-weight: bold; border: none; cursor: pointer; margin-top: 20px; transition: background 0.3s; font-size: 16px; }
         button:hover { background-color: #0056b3; }
         textarea { font-family: 'Consolas', monospace; font-size: 14px; }
-        .preview-box { margin-top: 10px; padding: 10px; background: #f8f9fa; border: 1px dashed #adb5bd; border-radius: 6px; font-family: 'Consolas', monospace; font-size: 13px; max-height: 150px; overflow-y: auto; color: #495057; }
+        
+        /* Preview Box */
+        .preview-box { 
+            margin-top: 10px; padding: 12px; background: #f8f9fa; 
+            border: 1px dashed #adb5bd; border-radius: 6px; 
+            font-family: 'Consolas', monospace; font-size: 13px; 
+            max-height: 200px; overflow-y: auto; color: #495057;
+            line-height: 1.7;
+        }
+        .preview-new { color: #155724; background: #d4edda; padding: 2px 6px; border-radius: 3px; display: inline-block; margin: 2px 0; }
+        .preview-exists { color: #856404; background: #fff3cd; padding: 2px 6px; border-radius: 3px; display: inline-block; margin: 2px 0; }
+        .preview-unsafe { color: #721c24; background: #f8d7da; padding: 2px 6px; border-radius: 3px; display: inline-block; margin: 2px 0; }
+        
+        /* Suggestion Box */
+        .suggestion-box {
+            margin-top: 10px; padding: 12px; background: #fff8e1;
+            border: 2px solid #ffc107; border-radius: 6px;
+            display: none;
+        }
+        .suggestion-box.active { display: block; }
+        .suggestion-box h4 { margin: 0 0 8px 0; color: #856404; font-size: 14px; }
+        .suggestion-box code { 
+            background: #fff3cd; padding: 4px 8px; border-radius: 4px; 
+            font-family: 'Consolas', monospace; color: #856404; font-weight: bold;
+            display: block; margin: 6px 0;
+        }
+        .suggestion-btn {
+            background: #ffc107; color: #212529; border: none; 
+            padding: 6px 14px; border-radius: 4px; cursor: pointer; 
+            font-weight: bold; font-size: 13px; margin-top: 6px;
+            width: auto; display: inline-block;
+        }
+        .suggestion-btn:hover { background: #e0a800; }
+        
+        /* Summary */
+        .summary {
+            display: flex; gap: 10px; margin-top: 10px; font-size: 13px;
+        }
+        .summary-item {
+            flex: 1; padding: 8px; border-radius: 4px; text-align: center; font-weight: bold;
+        }
+        .summary-new { background: #d4edda; color: #155724; }
+        .summary-exists { background: #fff3cd; color: #856404; }
+        .summary-unsafe { background: #f8d7da; color: #721c24; }
+        
+        .loading { color: #6c757d; font-style: italic; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2 style="text-align: center; color: #333; margin-bottom: 25px;">📁 Pembuat Folder Multi-Level + Range</h2>
+        <h2 style="text-align: center; color: #333; margin-bottom: 25px;">📁 Pembuat Folder Multi-Level + Smart Suggestion</h2>
         <form action="/create-folder" method="POST">
             
             <div style="margin-bottom: 20px;">
@@ -36,7 +81,7 @@
             </div>
 
             <div style="margin-bottom: 15px;">
-                <label><strong>2. Daftar Folder Baru (Support Range Otomatis):</strong></label>
+                <label><strong>2. Daftar Folder Baru (Support Range & Suggestion):</strong></label>
                 <textarea name="folderList" id="folderList" rows="8" required placeholder="Pertemuan-{1:16}&#10;Tugas&#10;Ujian\Soal&#10;Minggu-{01:12}\Materi"></textarea>
                 
                 <div class="hint">
@@ -44,14 +89,27 @@
                     <ul>
                         <li><code>Pertemuan-{1:16}</code> → Pertemuan-1, Pertemuan-2, ..., Pertemuan-16</li>
                         <li><code>Minggu-{01:12}</code> → Minggu-01, Minggu-02, ..., Minggu-12 (dengan nol depan)</li>
-                        <li><code>Bab{1:5}</code> → Bab1, Bab2, ..., Bab5</li>
-                        <li><code>Pertemuan-{1:16}\Materi</code> → Pertemuan-1\Materi, Pertemuan-2\Materi, ... (bertingkat)</li>
+                        <li><code>Pertemuan-{1:16}\Materi</code> → Pertemuan-1\Materi, Pertemuan-2\Materi, ...</li>
                     </ul>
-                    <strong>📝 Format lain:</strong> Pisahkan dengan <strong>koma</strong> atau <strong>Enter</strong>. Gunakan <code>\</code> untuk folder bertingkat.
+                    <strong>💡 Smart Suggestion:</strong> Jika folder sudah ada, sistem akan otomatis memberi saran range baru.
                 </div>
 
+                <!-- Summary Counter -->
+                <div class="summary" id="summary" style="display: none;">
+                    <div class="summary-item summary-new" id="summaryNew">🟢 0 Baru</div>
+                    <div class="summary-item summary-exists" id="summaryExists">🟡 0 Sudah Ada</div>
+                    <div class="summary-item summary-unsafe" id="summaryUnsafe">🔴 0 Tidak Aman</div>
+                </div>
+
+                <!-- Preview Box -->
                 <div class="preview-box" id="preview">
                     <em>Preview hasil folder akan muncul di sini saat Anda mengetik...</em>
+                </div>
+
+                <!-- Suggestion Box -->
+                <div class="suggestion-box" id="suggestionBox">
+                    <h4>💡 Saran: Ada folder yang sudah ada di lokasi tujuan</h4>
+                    <div id="suggestionContent"></div>
                 </div>
             </div>
 
@@ -64,7 +122,16 @@
         const basePathInput = document.getElementById('basePath');
         const folderListInput = document.getElementById('folderList');
         const previewBox = document.getElementById('preview');
+        const suggestionBox = document.getElementById('suggestionBox');
+        const suggestionContent = document.getElementById('suggestionContent');
+        const summary = document.getElementById('summary');
+        const summaryNew = document.getElementById('summaryNew');
+        const summaryExists = document.getElementById('summaryExists');
+        const summaryUnsafe = document.getElementById('summaryUnsafe');
+        
         let currentPathArray = []; 
+        let debounceTimer = null;
+        let abortController = null;
 
         function getFullPath() {
             if (currentPathArray.length === 0) return "";
@@ -76,7 +143,7 @@
             return pathStr;
         }
 
-        // ===== RANGE EXPANDER (Client-side preview) =====
+        // ===== RANGE EXPANDER =====
         function expandPatterns(entries) {
             const result = [];
             const patternRegex = /^(.*)[\{\[](-?\d+):(-?\d+)[\}\}](.*)$/;
@@ -91,47 +158,209 @@
                     const padLength = Math.max(match[2].length, match[3].length);
                     
                     if (start > end) {
-                        result.push(`⚠️ [Range terbalik: ${entry}]`);
+                        result.push({ name: entry, type: 'unsafe', reason: 'Range terbalik' });
                         continue;
                     }
                     
-                    const limit = Math.min(end - start + 1, 100);
+                    const limit = Math.min(end - start + 1, 200);
                     for (let i = 0; i < limit; i++) {
                         const num = start + i;
                         const padded = String(num).padStart(padLength, '0');
-                        result.push(prefix + padded + suffix);
-                    }
-                    if (end - start + 1 > 100) {
-                        result.push(`⚠️ [Dibatasi 100 item]`);
+                        result.push({ name: prefix + padded + suffix, type: 'pending', pattern: { prefix, suffix, start, end, padLength, full: entry } });
                     }
                 } else {
-                    result.push(entry);
+                    result.push({ name: entry, type: 'pending', pattern: null });
                 }
             }
             return result;
         }
 
-        function updatePreview() {
+        // ===== SMART SUGGESTION ENGINE =====
+        function generateSuggestion(rawInput, existingFolders) {
+            const patternRegex = /^(.*)[\{\[](-?\d+):(-?\d+)[\}\}](.*)$/;
+            const suggestions = [];
+            
+            const lines = rawInput.split(/[,\n\r]+/).map(l => l.trim()).filter(l => l);
+            
+            for (const line of lines) {
+                const match = line.match(patternRegex);
+                if (!match) continue;
+                
+                const prefix = match[1];
+                const suffix = match[4];
+                const start = parseInt(match[2]);
+                const end = parseInt(match[3]);
+                const padLength = Math.max(match[2].length, match[3].length);
+                
+                // Cari angka tertinggi yang sudah ada di pattern ini
+                let maxExisting = start - 1;
+                let existingCount = 0;
+                
+                for (let i = start; i <= end; i++) {
+                    const padded = String(i).padStart(padLength, '0');
+                    const folderName = prefix + padded + suffix;
+                    if (existingFolders.includes(folderName)) {
+                        maxExisting = i;
+                        existingCount++;
+                    }
+                }
+                
+                // Jika ada yang sudah ada, buat saran
+                if (existingCount > 0) {
+                    const newStart = maxExisting + 1;
+                    if (newStart <= end) {
+                        const newPadded = String(newStart).padStart(padLength, '0');
+                        const suggestion = `${prefix}{${newPadded}:${end}}${suffix}`;
+                        suggestions.push({
+                            original: line,
+                            suggestion: suggestion,
+                            existingCount: existingCount,
+                            totalCount: end - start + 1
+                        });
+                    } else {
+                        suggestions.push({
+                            original: line,
+                            suggestion: null,
+                            existingCount: existingCount,
+                            totalCount: end - start + 1,
+                            allExist: true
+                        });
+                    }
+                }
+            }
+            
+            return suggestions;
+        }
+
+        // ===== CHECK EXISTING FOLDERS VIA API =====
+        async function checkExistingFolders(basePath, folders) {
+            if (abortController) abortController.abort();
+            abortController = new AbortController();
+            
+            try {
+                const res = await fetch('/api/check-existing', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ basePath, folders }),
+                    signal: abortController.signal
+                });
+                return await res.json();
+            } catch (err) {
+                if (err.name === 'AbortError') return null;
+                console.error('Check existing error:', err);
+                return null;
+            }
+        }
+
+        // ===== UPDATE PREVIEW =====
+        async function updatePreview() {
             const raw = folderListInput.value;
             if (!raw.trim()) {
                 previewBox.innerHTML = '<em>Preview hasil folder akan muncul di sini saat Anda mengetik...</em>';
+                suggestionBox.classList.remove('active');
+                summary.style.display = 'none';
                 return;
             }
+            
+            const basePath = basePathInput.value.trim();
+            if (!basePath) {
+                previewBox.innerHTML = '<em class="loading">⏳ Pilih lokasi tujuan terlebih dahulu...</em>';
+                return;
+            }
+
+            previewBox.innerHTML = '<em class="loading">⏳ Memeriksa folder yang sudah ada...</em>';
+            
             const entries = raw.split(/[,\n\r]+/).map(e => e.trim()).filter(e => e !== '');
             const expanded = expandPatterns(entries);
-            const basePath = basePathInput.value || '[basePath]';
+            const folderNames = expanded.map(e => e.name);
             
-            const previewHtml = expanded.slice(0, 30).map(e => 
-                `📁 ${basePath}\\${e}`
-            ).join('<br>');
+            // Cek folder yang sudah ada
+            const checkResult = await checkExistingFolders(basePath, folderNames);
             
-            const moreCount = expanded.length - 30;
-            previewBox.innerHTML = previewHtml + (moreCount > 0 ? `<br><em>... dan ${moreCount} folder lainnya</em>` : '');
+            if (!checkResult) {
+                previewBox.innerHTML = '<em>Gagal memeriksa folder yang sudah ada.</em>';
+                return;
+            }
+            
+            const { existing, unsafe } = checkResult;
+            const existingSet = new Set(existing);
+            
+            // Update tipe setiap entry
+            expanded.forEach(e => {
+                if (unsafe && unsafe.includes(e.name)) {
+                    e.type = 'unsafe';
+                } else if (existingSet.has(e.name)) {
+                    e.type = 'exists';
+                } else {
+                    e.type = 'new';
+                }
+            });
+            
+            // Render preview
+            const previewHtml = expanded.slice(0, 50).map(e => {
+                const cls = e.type === 'new' ? 'preview-new' : e.type === 'exists' ? 'preview-exists' : 'preview-unsafe';
+                const icon = e.type === 'new' ? '🟢' : e.type === 'exists' ? '🟡' : '🔴';
+                const reason = e.reason ? ` (${e.reason})` : '';
+                return `<div class="${cls}">${icon} ${basePath}\\${e.name}${reason}</div>`;
+            }).join('');
+            
+            const moreCount = expanded.length - 50;
+            previewBox.innerHTML = previewHtml + (moreCount > 0 ? `<div class="loading">... dan ${moreCount} folder lainnya</div>` : '');
+            
+            // Update summary
+            const newCount = expanded.filter(e => e.type === 'new').length;
+            const existsCount = expanded.filter(e => e.type === 'exists').length;
+            const unsafeCount = expanded.filter(e => e.type === 'unsafe').length;
+            
+            summary.style.display = 'flex';
+            summaryNew.textContent = `🟢 ${newCount} Baru`;
+            summaryExists.textContent = `🟡 ${existsCount} Sudah Ada`;
+            summaryUnsafe.textContent = `🔴 ${unsafeCount} Tidak Aman`;
+            
+            // Generate suggestion
+            const suggestions = generateSuggestion(raw, existing);
+            if (suggestions.length > 0) {
+                let html = '';
+                suggestions.forEach(s => {
+                    if (s.allExist) {
+                        html += `<div>⚠️ <strong>${s.original}</strong> → Semua ${s.totalCount} folder sudah ada.</div>`;
+                    } else {
+                        html += `
+                            <div>
+                                ⚠️ <strong>${s.existingCount}</strong> dari <strong>${s.totalCount}</strong> folder di <code style="display:inline;">${s.original}</code> sudah ada.
+                                <br>💡 Saran: <code>${s.suggestion}</code>
+                                <button type="button" class="suggestion-btn" onclick="applySuggestion('${s.original.replace(/'/g, "\\'")}', '${s.suggestion.replace(/'/g, "\\'")}')">
+                                    ✅ Gunakan Saran
+                                </button>
+                            </div>
+                        `;
+                    }
+                });
+                suggestionContent.innerHTML = html;
+                suggestionBox.classList.add('active');
+            } else {
+                suggestionBox.classList.remove('active');
+            }
         }
 
-        folderListInput.addEventListener('input', updatePreview);
-        basePathInput.addEventListener('input', updatePreview);
+        // Apply suggestion to textarea
+        window.applySuggestion = function(original, suggestion) {
+            const raw = folderListInput.value;
+            const newRaw = raw.replace(original, suggestion);
+            folderListInput.value = newRaw;
+            updatePreview();
+        };
 
+        // Debounced update
+        function debouncedUpdate() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(updatePreview, 500);
+        }
+
+        folderListInput.addEventListener('input', debouncedUpdate);
+        basePathInput.addEventListener('input', debouncedUpdate);
+
+        // ===== DRIVE & FOLDER SELECT =====
         async function initDrives() {
             try {
                 const res = await fetch('/api/drives');
@@ -152,7 +381,7 @@
             if (basePathInput.value === "" || currentPathArray.length > 0) {
                 basePathInput.value = getFullPath();
             }
-            updatePreview();
+            debouncedUpdate();
 
             if (options.length === 0) return;
 
@@ -177,13 +406,13 @@
                     currentPathArray = currentPathArray.slice(0, level);
                     createSelect([], level + 1);
                     basePathInput.value = getFullPath();
-                    updatePreview();
+                    debouncedUpdate();
                     return;
                 }
 
                 currentPathArray[level] = val;
                 basePathInput.value = getFullPath();
-                updatePreview();
+                debouncedUpdate();
 
                 try {
                     const res = await fetch('/api/folders?path=' + encodeURIComponent(getFullPath()));
