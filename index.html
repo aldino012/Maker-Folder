@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buat Folder Dinamis Multi-Level</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f0f2f5; color: #333; }
+        .container { max-width: 800px; margin: 40px auto; padding: 30px; background: white; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
+        select, input, textarea, button { width: 100%; padding: 12px; margin-top: 6px; box-sizing: border-box; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; }
+        select { margin-bottom: 10px; background-color: #fdfdfd; cursor: pointer; }
+        .editable-input { background-color: #fff; border: 2px solid #007bff; font-weight: bold; color: #333; }
+        .editable-input:focus { outline: none; border-color: #0056b3; box-shadow: 0 0 5px rgba(0,123,255,0.3); }
+        .hint { font-size: 13px; color: #555; margin-top: 6px; display: block; background: #eef7ff; padding: 10px; border-radius: 6px; border-left: 4px solid #007bff; line-height: 1.6; }
+        .hint code { background: #dceefc; padding: 2px 6px; border-radius: 4px; color: #0056b3; font-weight: bold; font-family: 'Consolas', monospace; }
+        .hint strong { color: #0056b3; }
+        .hint ul { margin: 6px 0 0 0; padding-left: 20px; }
+        .hint li { margin-bottom: 3px; }
+        button { background-color: #007bff; color: white; font-weight: bold; border: none; cursor: pointer; margin-top: 20px; transition: background 0.3s; font-size: 16px; }
+        button:hover { background-color: #0056b3; }
+        textarea { font-family: 'Consolas', monospace; font-size: 14px; }
+        .preview-box { margin-top: 10px; padding: 10px; background: #f8f9fa; border: 1px dashed #adb5bd; border-radius: 6px; font-family: 'Consolas', monospace; font-size: 13px; max-height: 150px; overflow-y: auto; color: #495057; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 style="text-align: center; color: #333; margin-bottom: 25px;">📁 Pembuat Folder Multi-Level + Range</h2>
+        <form action="/create-folder" method="POST">
+            
+            <div style="margin-bottom: 20px;">
+                <label><strong>1. Lokasi Tujuan (Sudah Ada):</strong></label>
+                <div id="select-container" style="margin-top: 10px;"></div>
+                
+                <input type="text" name="basePath" id="basePath" class="editable-input" required placeholder="Contoh: E:\Kuliah\Semester-4\Internet Marketing">
+                <span class="hint">💡 Pilih dari dropdown, atau <strong>ketik manual</strong> path folder yang sudah ada.</span>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label><strong>2. Daftar Folder Baru (Support Range Otomatis):</strong></label>
+                <textarea name="folderList" id="folderList" rows="8" required placeholder="Pertemuan-{1:16}&#10;Tugas&#10;Ujian\Soal&#10;Minggu-{01:12}\Materi"></textarea>
+                
+                <div class="hint">
+                    <strong>🎯 Fitur Range Generator:</strong> Gunakan format <code>Nama{start:end}</code> untuk membuat banyak folder otomatis.
+                    <ul>
+                        <li><code>Pertemuan-{1:16}</code> → Pertemuan-1, Pertemuan-2, ..., Pertemuan-16</li>
+                        <li><code>Minggu-{01:12}</code> → Minggu-01, Minggu-02, ..., Minggu-12 (dengan nol depan)</li>
+                        <li><code>Bab{1:5}</code> → Bab1, Bab2, ..., Bab5</li>
+                        <li><code>Pertemuan-{1:16}\Materi</code> → Pertemuan-1\Materi, Pertemuan-2\Materi, ... (bertingkat)</li>
+                    </ul>
+                    <strong>📝 Format lain:</strong> Pisahkan dengan <strong>koma</strong> atau <strong>Enter</strong>. Gunakan <code>\</code> untuk folder bertingkat.
+                </div>
+
+                <div class="preview-box" id="preview">
+                    <em>Preview hasil folder akan muncul di sini saat Anda mengetik...</em>
+                </div>
+            </div>
+
+            <button type="submit">🚀 Buat Semua Folder Sekarang</button>
+        </form>
+    </div>
+
+    <script>
+        const container = document.getElementById('select-container');
+        const basePathInput = document.getElementById('basePath');
+        const folderListInput = document.getElementById('folderList');
+        const previewBox = document.getElementById('preview');
+        let currentPathArray = []; 
+
+        function getFullPath() {
+            if (currentPathArray.length === 0) return "";
+            let pathStr = currentPathArray[0];
+            for (let i = 1; i < currentPathArray.length; i++) {
+                if (!pathStr.endsWith('\\')) pathStr += '\\';
+                pathStr += currentPathArray[i];
+            }
+            return pathStr;
+        }
+
+        // ===== RANGE EXPANDER (Client-side preview) =====
+        function expandPatterns(entries) {
+            const result = [];
+            const patternRegex = /^(.*)[\{\[](-?\d+):(-?\d+)[\}\}](.*)$/;
+            
+            for (const entry of entries) {
+                const match = entry.match(patternRegex);
+                if (match) {
+                    const prefix = match[1];
+                    const suffix = match[4];
+                    const start = parseInt(match[2]);
+                    const end = parseInt(match[3]);
+                    const padLength = Math.max(match[2].length, match[3].length);
+                    
+                    if (start > end) {
+                        result.push(`⚠️ [Range terbalik: ${entry}]`);
+                        continue;
+                    }
+                    
+                    const limit = Math.min(end - start + 1, 100);
+                    for (let i = 0; i < limit; i++) {
+                        const num = start + i;
+                        const padded = String(num).padStart(padLength, '0');
+                        result.push(prefix + padded + suffix);
+                    }
+                    if (end - start + 1 > 100) {
+                        result.push(`⚠️ [Dibatasi 100 item]`);
+                    }
+                } else {
+                    result.push(entry);
+                }
+            }
+            return result;
+        }
+
+        function updatePreview() {
+            const raw = folderListInput.value;
+            if (!raw.trim()) {
+                previewBox.innerHTML = '<em>Preview hasil folder akan muncul di sini saat Anda mengetik...</em>';
+                return;
+            }
+            const entries = raw.split(/[,\n\r]+/).map(e => e.trim()).filter(e => e !== '');
+            const expanded = expandPatterns(entries);
+            const basePath = basePathInput.value || '[basePath]';
+            
+            const previewHtml = expanded.slice(0, 30).map(e => 
+                `📁 ${basePath}\\${e}`
+            ).join('<br>');
+            
+            const moreCount = expanded.length - 30;
+            previewBox.innerHTML = previewHtml + (moreCount > 0 ? `<br><em>... dan ${moreCount} folder lainnya</em>` : '');
+        }
+
+        folderListInput.addEventListener('input', updatePreview);
+        basePathInput.addEventListener('input', updatePreview);
+
+        async function initDrives() {
+            try {
+                const res = await fetch('/api/drives');
+                const drives = await res.json();
+                createSelect(drives, 0, "Pilih Drive (C:\\, D:\\, E:\\, dsb)");
+            } catch (error) {
+                console.error("Gagal memuat drive:", error);
+            }
+        }
+
+        function createSelect(options, level, placeholderText) {
+            const existingSelects = container.querySelectorAll('select');
+            existingSelects.forEach(sel => {
+                if (parseInt(sel.dataset.level) >= level) sel.remove();
+            });
+
+            currentPathArray = currentPathArray.slice(0, level);
+            if (basePathInput.value === "" || currentPathArray.length > 0) {
+                basePathInput.value = getFullPath();
+            }
+            updatePreview();
+
+            if (options.length === 0) return;
+
+            const select = document.createElement('select');
+            select.dataset.level = level;
+
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = "";
+            defaultOpt.textContent = '-- ' + (placeholderText || 'Pilih Sub-Folder') + ' --';
+            select.appendChild(defaultOpt);
+
+            options.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt;
+                option.textContent = opt;
+                select.appendChild(option);
+            });
+
+            select.addEventListener('change', async (e) => {
+                const val = e.target.value;
+                if (!val) {
+                    currentPathArray = currentPathArray.slice(0, level);
+                    createSelect([], level + 1);
+                    basePathInput.value = getFullPath();
+                    updatePreview();
+                    return;
+                }
+
+                currentPathArray[level] = val;
+                basePathInput.value = getFullPath();
+                updatePreview();
+
+                try {
+                    const res = await fetch('/api/folders?path=' + encodeURIComponent(getFullPath()));
+                    const subfolders = await res.json();
+                    createSelect(subfolders, level + 1);
+                } catch (error) {
+                    createSelect([], level + 1);
+                }
+            });
+
+            container.appendChild(select);
+        }
+
+        initDrives();
+    </script>
+</body>
+</html>

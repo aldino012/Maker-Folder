@@ -1,0 +1,84 @@
+# ========================================
+# DEPENDENCIES
+# ========================================
+node_modules/
+jspm_packages/
+.pnp
+.pnp.js
+
+# ========================================
+# LOG & CACHE
+# ========================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# ========================================
+# ENVIRONMENT & SECRETS
+# ========================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.key
+*.pem
+
+# ========================================
+# OS GENERATED FILES (Windows & Mac)
+# ========================================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+._*
+.Spotlight-V100
+.Trashes
+
+# Linux
+*~
+
+# ========================================
+# IDE & EDITOR
+# ========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+
+# ========================================
+# BUILD & TEMP
+# ========================================
+dist/
+build/
+tmp/
+temp/
+.cache/
+coverage/
+.nyc_output/
+
+# ========================================
+# TESTING
+# ========================================
+*.test.js.snap
+*.spec.js.snap
+
+# ========================================
+# UPLOADS (jika nanti ada fitur upload file)
+# ========================================
+uploads/
+uploaded_files/
